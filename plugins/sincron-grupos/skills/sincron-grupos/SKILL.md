@@ -51,6 +51,16 @@ usuário fazer login. **Não peça API key manualmente.**
 - **Agentes**: `update_agent` (ligar/desligar via `ativo`, editar), `delete_agent`, `get_agent_logs` (histórico de respostas).
 - **Transcrição (ler)**: `get_transcription` (`group_id`) → modo efetivo (grupo > categoria > disabled) + `source`.
 
+### Gestão avançada
+- **Mensagens**: `retry_failed_message` (reenvia uma `failed` — envia real).
+- **Instâncias**: `reconnect_instance` (novo QR), `disconnect_instance`.
+- **Grupos**: `archive_groups` (ativo=false; reimportar reativa).
+- **Gatilhos**: `duplicate_trigger`, `run_trigger` (executa agora — dispara ação real, confirme antes), `list_trigger_executions`, `reorder_triggers`.
+- **Agentes**: `test_agent` (`agent_id`, `message` → resposta do modelo, sem postar), `bulk_toggle_agents`.
+- **Painel**: `get_stats` (grupos/instâncias/gatilhos/agentes/mensagens em números).
+
+> **Não há tools para billing nem para ações sensíveis** (senha, API keys, equipe, excluir grupo) — por design são humano-only.
+
 ## Fluxo recomendado
 
 1. **Diagnóstico**: chame `get_account`.
