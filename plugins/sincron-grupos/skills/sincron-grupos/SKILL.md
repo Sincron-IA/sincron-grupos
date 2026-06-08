@@ -42,6 +42,15 @@ usuário fazer login. **Não peça API key manualmente.**
   args: `agent_id`, `scope_type` (`all`|`groups`|`categories`), `group_ids[]` (UUIDs, quando `groups`) ou `category_ids[]`.
   Fluxo: `create_ai_agent` → `set_agent_scope`. O agente nasce `ativo: true`.
 
+### Gestão / CRUD (lote AI-first)
+- **Importar grupos**: `list_available_groups` (lista o que dá pra importar do WhatsApp, marca `ja_importado`) → `import_groups` (`group_jids[]` ou `name_filter`; sem args importa todos).
+- **Organizar**: `move_groups_to_category` (`group_ids[]` UUIDs, `category_id` ou null), `set_group_settings` (`guardar_todas_mensagens`).
+- **Categorias**: `create_category` (`name`, `color` hex), `update_category`, `delete_category` (grupos ficam sem categoria, não são apagados).
+- **Mensagens**: `list_messages` (histórico paginado, filtro `status`), `cancel_scheduled_message` (só agendadas).
+- **Gatilhos**: `update_trigger` (pausar/ativar via `is_active`, editar), `delete_trigger`.
+- **Agentes**: `update_agent` (ligar/desligar via `ativo`, editar), `delete_agent`, `get_agent_logs` (histórico de respostas).
+- **Transcrição (ler)**: `get_transcription` (`group_id`) → modo efetivo (grupo > categoria > disabled) + `source`.
+
 ## Fluxo recomendado
 
 1. **Diagnóstico**: chame `get_account`.
@@ -53,7 +62,7 @@ usuário fazer login. **Não peça API key manualmente.**
 
 3. **Conectar WhatsApp** (skill `conectar-whatsapp`): `connect_phone`, mostre o QR, faça polling com `get_instance_status` até `conectado`.
 
-4. **Operar grupos**: `list_groups`/`list_categories` para descobrir; `send_message`/`schedule_message` para enviar.
+4. **Operar grupos**: se a conta não tiver grupos, `list_available_groups` → `import_groups` para trazer do WhatsApp. Depois `list_groups`/`list_categories` para descobrir; `send_message`/`schedule_message` para enviar; `move_groups_to_category` para organizar.
 
 5. **Automação/IA**: `set_transcription_mode` para resumo de áudio; `create_trigger` para automações; `create_ai_agent` + `set_agent_scope` para um agente responder no grupo. Use `list_triggers`/`list_agents` para conferir.
 
