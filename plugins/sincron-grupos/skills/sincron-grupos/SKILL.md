@@ -24,11 +24,14 @@ node sincron.mjs help
 # (alternativa: dentro do repo → `cd cli && npm link` → comando global `sincron`)
 ```
 
-**Autenticar:** gere uma API key em **Settings → API keys** (`sg_live_...`), depois:
+**Autenticar (preferir OAuth no navegador — sem key manual):**
 ```bash
-node sincron.mjs login --key sg_live_...      # salva em ~/.sincron/config.json (perm 0600)
+node sincron.mjs login                        # OAuth no navegador (recomendado); guarda token em ~/.sincron (0600)
+# alternativa CI/headless:
+node sincron.mjs login --key sg_live_...        # API key (gere em Settings → API keys)
 # ou: export SINCRON_API_KEY=sg_live_...
 ```
+O `login` sem `--key` faz o fluxo OAuth (DCR+PKCE+loopback) e refresca o token sozinho. Onboarding de máquina nova = instalar + `login`, 1 clique.
 
 **Usar** (`node sincron.mjs ...` ou `sincron ...` se global):
 ```bash
