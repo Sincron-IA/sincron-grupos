@@ -1,7 +1,7 @@
 {
   "name": "sincron-grupos",
   "description": "Configure o Sincron Grupos pela IA: assine, conecte o WhatsApp, gerencie grupos, mensagens e agendamentos, configure transcrição/resumo de áudio, gatilhos (automações) e agentes de IA nos grupos — tudo via MCP, sem mexer na interface.",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "author": {
     "name": "Sincron IA"
   },

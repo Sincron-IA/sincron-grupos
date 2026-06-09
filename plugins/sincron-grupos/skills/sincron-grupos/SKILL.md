@@ -1,89 +1,63 @@
 ---
 name: sincron-grupos
-description: Configure e opere o Sincron Grupos (gestão de grupos WhatsApp) inteiramente pela IA. Use quando o usuário quiser assinar o serviço, conectar o WhatsApp/celular, importar ou listar grupos, enviar ou agendar mensagens, configurar transcrição/resumo de áudio, criar gatilhos (automações), criar agentes de IA e ativá-los nos grupos, ou checar o status da conta. Aciona em pedidos como "configurar meu Sincron Grupos", "conectar meu WhatsApp", "assinar o Grupos", "mandar mensagem pros grupos", "agendar mensagem", "ativar resumo de áudio", "criar um gatilho", "criar uma IA pro grupo".
+description: Configure e opere o Sincron Grupos (gestão de grupos WhatsApp) inteiramente pela IA via MCP. Use quando o usuário quiser assinar, conectar o WhatsApp/celular, importar/listar/organizar grupos, criar categorias, enviar ou agendar mensagens, configurar transcrição/resumo de áudio, criar/gerir gatilhos (automações), criar/ativar agentes de IA nos grupos, ver estatísticas, ou checar a conta. Aciona em pedidos como "configurar meu Sincron Grupos", "conectar meu WhatsApp", "assinar o Grupos", "importar meus grupos", "mandar mensagem pros grupos", "agendar mensagem", "criar categoria", "ativar resumo de áudio", "criar um gatilho", "ver estatísticas".
 ---
 
-# Sincron Grupos — Onboarding e operação pela IA
+# Sincron Grupos — Operação pela IA (MCP)
 
 Você opera o Sincron Grupos via servidor MCP `sincron-grupos` (já conectado por este plugin).
-A autenticação é automática por OAuth — no primeiro uso o Claude Code abre o navegador para o
-usuário fazer login. **Não peça API key manualmente.**
+Autenticação automática por OAuth — no primeiro uso o Claude Code abre o navegador para login.
+**Não peça API key manualmente.**
 
-## Ferramentas MCP disponíveis
+## Modelo das ferramentas: RECURSO + ACTION
 
-### Conta e conexão
-- `get_account` — plano, status da assinatura, uso e limites (`recursos_ia` indica se IA está liberada).
-- `create_checkout_link` — gera link de checkout Stripe (trial 7 dias). args: `plan` (starter|pro), `period` (monthly|annual).
-- `list_instances` / `connect_phone` / `get_instance_status` — conexão do WhatsApp. `list_instances`/`get_instance_status` retornam status **ao vivo** + campo `conectado` (boolean).
+São **9 tools**, uma por recurso. Cada uma recebe um campo **`action`** que escolhe a operação,
+mais os parâmetros daquela action (estilo REST). Ex.: `categories({ action: "create", name, color })`.
 
-### Grupos e mensagens
-- `list_groups` / `list_categories` — grupos e categorias. Grupos têm `id` (UUID) e `jid`.
-- `send_message` — envio imediato. args: `group_ids[]` (UUIDs), `message`.
-- `schedule_message` — agendamento. args: `group_ids[]`, `message`, `scheduled_at` (ISO 8601 futuro).
+| Tool | Actions |
+|---|---|
+| **`account`** | `get` (plano/status/uso/limites) · `checkout` (plan=starter\|pro, period=monthly\|annual) |
+| **`instances`** | `list` · `status`(instance_id) · `connect`(name → QR) · `reconnect`(instance_id → QR) · `disconnect`(instance_id) |
+| **`groups`** | `list`(category_id?/search?) · `available`(search? — do WhatsApp) · `import`(group_jids[] OU name_filter) · `move_category`(group_ids[]+category_id\|null) · `settings`(group_id+guardar_todas_mensagens/processar_simultaneo) · `archive`(group_ids[]) |
+| **`categories`** | `list` · `create`(name,color #RRGGBB) · `update`(category_id+name?/color?) · `delete`(category_id) |
+| **`messages`** | `list`(page?/status?) · `send`(group_ids[]+message) · `schedule`(+scheduled_at ISO futuro) · `cancel`(message_id) · `retry`(message_id) |
+| **`triggers`** | `list` · `create` · `update`(is_active pausa/ativa) · `delete` · `duplicate` · `run`(executa real) · `executions` · `reorder`(ordered_ids[]) |
+| **`agents`** | `list` · `create` · `update` · `delete` · `scope`(ativa no grupo) · `test` · `bulk_toggle` · `logs` |
+| **`transcription`** | `get`(group_id) · `set`(group_id OU category_id, mode=disabled\|auto\|manual\|auto_summary) |
+| **`stats`** | `get` |
 
-### Transcrição / resumo de áudio
-- `set_transcription_mode` — define o modo por **grupo** OU **categoria**.
-  args: `group_id` (UUID) **ou** `category_id` (UUID); `mode` (`disabled`|`auto`|`manual`|`auto_summary`); `tipo_transcricao?` (`simples`|`com_resumo`).
-  `auto`/`auto_summary` exigem `recursos_ia: true`. `auto_summary` = "Auto + Resumo IA".
+Detalhes de cada action e parâmetros estão na `description` de cada tool. As funções validam os
+campos obrigatórios e retornam erro claro se faltar algo — leia o erro e corrija.
 
-### Gatilhos (automações por evento)
-- `list_triggers` — lista gatilhos e status.
-- `create_trigger` — cria automação.
-  args: `name`, `event_type` (`keyword`|`new_member`|`member_leave`|`scheduled`|`reaction`),
-  `action_type` (`send_message`|`auto_reply`|`notify_admin`|`delete_member`|`webhook`|`ai_agent`),
-  `event_config` (ex.: keyword → `{ "keyword_text": "oi,ola" }`, vírgula = OR),
-  `action_config` (send_message → `{ "message": "...", "destination_type": "own_group" }`; auto_reply → `{ "reply_message": "..." }`),
-  `target_group_ids[]` (UUIDs), `target_category_ids[]?`, `is_active?` (default true).
-
-### Agentes de IA (respondem dentro do grupo)
-- `list_agents` — lista agentes + escopo de grupos vinculados.
-- `create_ai_agent` — cria o agente. args: `nome`, `instrucao` (system prompt, mín. 20 chars), `modelo?` (default `gpt-4o-mini`), `temperatura?` (0..1), `resposta_privada?`. Exige `recursos_ia`.
-- `set_agent_scope` — **ativa** o agente em grupos/categorias (o "colocar pra funcionar no grupo").
-  args: `agent_id`, `scope_type` (`all`|`groups`|`categories`), `group_ids[]` (UUIDs, quando `groups`) ou `category_ids[]`.
-  Fluxo: `create_ai_agent` → `set_agent_scope`. O agente nasce `ativo: true`.
-
-### Gestão / CRUD (lote AI-first)
-- **Importar grupos**: `list_available_groups` (lista o que dá pra importar do WhatsApp, marca `ja_importado`) → `import_groups` (`group_jids[]` ou `name_filter`; sem args importa todos).
-- **Organizar**: `move_groups_to_category` (`group_ids[]` UUIDs, `category_id` ou null), `set_group_settings` (`guardar_todas_mensagens`).
-- **Categorias**: `create_category` (`name`, `color` hex), `update_category`, `delete_category` (grupos ficam sem categoria, não são apagados).
-- **Mensagens**: `list_messages` (histórico paginado, filtro `status`), `cancel_scheduled_message` (só agendadas).
-- **Gatilhos**: `update_trigger` (pausar/ativar via `is_active`, editar), `delete_trigger`.
-- **Agentes**: `update_agent` (ligar/desligar via `ativo`, editar), `delete_agent`, `get_agent_logs` (histórico de respostas).
-- **Transcrição (ler)**: `get_transcription` (`group_id`) → modo efetivo (grupo > categoria > disabled) + `source`.
-
-### Gestão avançada
-- **Mensagens**: `retry_failed_message` (reenvia uma `failed` — envia real).
-- **Instâncias**: `reconnect_instance` (novo QR), `disconnect_instance`.
-- **Grupos**: `archive_groups` (ativo=false; reimportar reativa).
-- **Gatilhos**: `duplicate_trigger`, `run_trigger` (executa agora — dispara ação real, confirme antes), `list_trigger_executions`, `reorder_triggers`.
-- **Agentes**: `test_agent` (`agent_id`, `message` → resposta do modelo, sem postar), `bulk_toggle_agents`.
-- **Painel**: `get_stats` (grupos/instâncias/gatilhos/agentes/mensagens em números).
-
-> **Não há tools para billing nem para ações sensíveis** (senha, API keys, equipe, excluir grupo) — por design são humano-only.
+### Referência rápida de enums
+- **trigger event_type**: `keyword`, `new_member`, `member_leave`, `scheduled`, `reaction`.
+- **trigger action_type**: `send_message`, `auto_reply`, `notify_admin`, `delete_member`, `webhook`, `ai_agent`.
+- **trigger event_config** (keyword): `{ keyword_text: "oi,ola" }` (vírgula = OU). **action_config**: send_message `{ message, destination_type:"own_group" }`; auto_reply `{ reply_message }`.
+- **transcrição mode**: `disabled`, `auto`, `manual`, `auto_summary` (= "Auto + Resumo IA"). Grupo usa o UUID do grupo; categoria usa o UUID da categoria.
+- **agente scope**: `scope_type` = `all` | `groups` (group_ids[] UUIDs) | `categories`.
 
 ## Fluxo recomendado
 
-1. **Diagnóstico**: chame `get_account`.
-   - 401/sem autorização → login OAuth não feito; o Claude Code abre o navegador. Oriente concluir o login e tente de novo.
-   - `subscription_status` `none`/`blocked` → **Assinar**.
-   - Ativo/trial → **Conectar WhatsApp** (se não houver instância conectada).
-
-2. **Assinar** (skill `assinar`): `create_checkout_link` e **apresente o `checkout_url`**. Trial 7 dias. Confirme com `get_account`.
-
-3. **Conectar WhatsApp** (skill `conectar-whatsapp`): `connect_phone`, mostre o QR, faça polling com `get_instance_status` até `conectado`.
-
-4. **Operar grupos**: se a conta não tiver grupos, `list_available_groups` → `import_groups` para trazer do WhatsApp. Depois `list_groups`/`list_categories` para descobrir; `send_message`/`schedule_message` para enviar; `move_groups_to_category` para organizar.
-
-5. **Automação/IA**: `set_transcription_mode` para resumo de áudio; `create_trigger` para automações; `create_ai_agent` + `set_agent_scope` para um agente responder no grupo. Use `list_triggers`/`list_agents` para conferir.
+1. **Diagnóstico**: `account({action:"get"})`. 401 → conclua o login OAuth no navegador.
+   `subscription_status` none/blocked → **Assinar**. Ativo/trial → seguir.
+2. **Assinar**: `account({action:"checkout", plan, period})` → apresente `checkout_url`. Trial 7 dias.
+3. **Conectar WhatsApp**: `instances({action:"connect", name})` → mostre o QR → `instances({action:"status", instance_id})` até `conectado`.
+4. **Grupos**: sem grupos? `groups({action:"available"})` → `groups({action:"import", name_filter})`. Depois `groups({action:"list"})`, organize com `categories` + `groups({action:"move_category"})`.
+5. **Operar**: `messages({action:"send"|"schedule"})`; automações com `triggers`; resumo de áudio com `transcription({action:"set"})`; números com `stats({action:"get"})`.
 
 ## Notificações no celular
-O Sincron Grupos envia avisos (ex.: confirmação, código) como **mensagem de WhatsApp para o número
-conectado**, usando a própria instância. Conectar o celular já habilita receber notificações nele.
+Avisos (confirmação, código) chegam como **mensagem de WhatsApp para o número conectado**, via a
+própria instância. Conectar o celular já habilita receber notificações nele.
 
 ## Regras
-- **Confirme antes de agir** em qualquer ação que escreve: enviar mensagem, criar gatilho, criar/ativar agente, mudar transcrição. Mostre conteúdo + grupos-alvo e peça OK.
-- **Escopo de categoria afeta TODOS os grupos da categoria** — confirme explicitamente antes de usar `category_id` em `set_transcription_mode` ou `scope_type=categories`. Na dúvida, prefira por grupo (`group_id`/`group_ids`).
-- Gatilhos `auto_reply`/`send_message` e agentes ativos podem **disparar mensagens reais** nos grupos. Avise o usuário ao ativar.
+- **Confirme antes de qualquer escrita**: enviar/agendar mensagem, criar/editar/excluir gatilho ou
+  agente, mudar transcrição, importar/arquivar grupos. Mostre o conteúdo + alvos e peça OK.
+- **Escopo de categoria afeta TODOS os grupos da categoria** — confirme antes de usar `category_id`
+  em `transcription set` ou `agents scope (categories)`. Na dúvida, use por grupo.
+- **Ações que disparam no WhatsApp de verdade**: `messages send/retry`, `triggers run`, e gatilhos/
+  agentes ativos. Avise o usuário.
 - Datas de agendamento sempre no futuro, ISO 8601 (ex.: `2026-06-10T14:00:00-03:00`).
-- Se um limite de plano ou `recursos_ia: false` bloquear, ofereça `create_checkout_link` para upgrade.
-- Não há tool de exclusão de grupo por design — operações são aditivas/seguras.
+- Limite de plano ou `recursos_ia:false` bloqueia? Ofereça `account({action:"checkout"})`.
+- **Não há ferramenta de billing avançado** (trocar plano/portal) nem para ações **sensíveis**
+  (senha, API keys, equipe, excluir grupo) — por design são humano-only.
+- O **agente in-group** (`agents`) é uma feature **em desenvolvimento**; pode não estar 100%.
