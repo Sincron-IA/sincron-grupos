@@ -82,6 +82,22 @@ Enums: trigger event_type `keyword\|new_member\|member_leave\|scheduled\|reactio
 3. **Grupos:** sem grupos? `groups available` → `groups import`. Depois organize com `categories` + `groups move_category`.
 4. **Operar:** `messages send/schedule`; automações `triggers`; resumo de áudio `transcription set`; números `stats get`.
 
+## 🔒 Segurança — travas OBRIGATÓRIAS (gatilhos & agentes)
+
+> **Regra de ouro:** a automação que ESCUTA num grupo **não responde nesse mesmo grupo com conteúdo interno**. Escuta ≠ destino. (Foi assim que uma detecção interna de "proposta" vazou no grupo do cliente.)
+
+1. **Todo grupo é CLIENTE por padrão.** Antes de criar OU ativar qualquer gatilho/agente que POSTA num grupo, **declare o destino em voz alta** e pergunte: "esse grupo é **interno** (sua equipe) ou de **cliente**?". Conteúdo de uso interno (detecção de proposta/lead/oportunidade, alerta pra equipe, "avisar que…") **NUNCA** pode cair em grupo de cliente.
+
+2. **Proibido `own_group` para notificação/detecção interna.** `action_config.destination_type: "own_group"` (responder no próprio grupo que disparou) e `auto_reply` só servem para resposta **pública genuína** que todos no grupo podem ver (boas-vindas, FAQ, "pong"). Para alerta **interno** use:
+   - `notify_admin` → cai no **celular conectado** (mais seguro), ou
+   - `send_message` com `destination_type: "other_group"` apontando para um grupo **INTERNO** que o usuário escolheu explicitamente, ou `destination_type: "whatsapp"` para um número.
+
+3. **Palavras sensíveis = freio duplo.** Se o conteúdo da ação contém *proposta, lead, oportunidade, orçamento, valor, preço, custo, fechar, contrato, fatura, comissão, margem* **E** o destino é `own_group` ou um grupo de cliente → **PARE**, mostre alerta forte e exija confirmação literal do usuário ("confirmo postar isso no grupo do cliente") antes de criar/ativar.
+
+4. **Nasce PAUSADO.** Todo gatilho/agente criado pela IA → `is_active:false` / `ativo:false`. Só ative depois de: (a) revisar o destino com o usuário, (b) testar com `triggers run` / `agents test`, (c) OK explícito.
+
+5. **Auditoria pré-uso (rodar antes de liberar pra equipe):** `triggers list` + `agents list` → sinalize toda automação **ativa** cujo destino seja `own_group` ou inclua grupo de cliente, principalmente com conteúdo sensível. Ofereça pausar.
+
 ## Regras
 - **Confirme antes de qualquer escrita** (enviar/agendar mensagem, criar/editar/excluir gatilho/agente, mudar transcrição, importar/arquivar grupos): mostre conteúdo + alvos e peça OK. No CLI, use `--dry-run` para revisar.
 - **Escopo de categoria afeta TODOS os grupos** dela — confirme antes de usar `category_id` em `transcription set`/`agents scope`.
