@@ -1,66 +1,69 @@
-# Plugin Sincron Grupos (Claude Code / Codex)
+# Sincron Grupos para Claude
 
-Configure e opere o **Sincron Grupos** inteiramente pela IA — assinar, conectar o WhatsApp e
-gerenciar grupos/mensagens — via servidor **MCP** hospedado em `grupos.sincronia.digital/api/mcp`.
+Opere o [Sincron Grupos](https://grupos.sincronia.digital) conversando com o Claude: assinar, conectar o
+WhatsApp, importar e organizar grupos, enviar e agendar mensagens, configurar resumo de áudio, gatilhos e
+agentes de IA.
 
-Autenticação por **OAuth 2.0**: no primeiro uso o Claude Code abre o navegador para login.
-**O usuário não configura MCP nem cola API key.**
+O plugin registra o servidor MCP `https://grupos.sincronia.digital/api/mcp` e instala três skills que
+ensinam o Claude a usá-lo com segurança. O login é feito no navegador (OAuth): você não precisa colar
+nenhuma chave.
 
-## Estrutura
+## Instalar
+
+### Claude Code
 
 ```
-plugins/sincron-grupos/
-  .claude-plugin/plugin.json     # manifesto do plugin
-  .mcp.json                      # registra o MCP remoto (auto-conectado no install)
-  skills/
-    sincron-grupos/SKILL.md      # orquestrador (onboarding completo)
-    conectar-whatsapp/SKILL.md   # conexão por QR
-    assinar/SKILL.md             # checkout self-serve
+/plugin install sincron-grupos --marketplace Sincron-IA/sincron-grupos
 ```
 
-## Instalar (Claude Code)
+Em versões mais antigas do Claude Code, use dois comandos:
 
 ```
 /plugin marketplace add Sincron-IA/sincron-grupos
+```
+```
 /plugin install sincron-grupos
 ```
 
-No primeiro uso de uma tool, o Claude Code abre o navegador para o login OAuth. Pronto.
+Feche e abra o Claude Code. Na primeira vez que pedir algo, o navegador abre para o login.
 
-## Usar (Codex)
+### Claude.ai (web ou desktop), sem plugin
 
-Codex não tem plugins, mas conecta ao mesmo MCP com um comando:
+**Configurações → Conectores → Adicionar conector personalizado** e informe a URL:
+
+```
+https://grupos.sincronia.digital/api/mcp
+```
+
+### Codex
 
 ```
 codex mcp add sincron-grupos --url https://grupos.sincronia.digital/api/mcp
 ```
 
-## Publicação — duas opções
+## Como usar
 
-1. **Repo próprio** `Sincron-IA/sincron-grupos` (este diretório): `/plugin marketplace add Sincron-IA/sincron-grupos`.
-2. **Marketplace `sincron-tools`** (compartilhado, no repo `gtm`): adicione a entrada abaixo em
-   `.claude-plugin/marketplace.json` e referencie o source (path local se mover a pasta, ou um
-   `source` git apontando para o repo do plugin):
+Peça em português, como pediria a uma pessoa:
 
-```json
-{
-  "name": "sincron-grupos",
-  "description": "Configure e opere o Sincron Grupos pela IA via MCP (assinatura, WhatsApp, grupos, mensagens).",
-  "version": "1.0.0",
-  "author": { "name": "Sincron IA" },
-  "source": "./plugins/sincron-grupos",
-  "category": "productivity"
-}
-```
+- "Quais grupos eu tenho?"
+- "Manda 'Reunião às 15h hoje' no grupo Equipe Comercial."
+- "Agenda um bom dia para os grupos da categoria Clientes amanhã às 8h."
+- "Ativa o resumo de áudio nos grupos da categoria Turmas."
 
-## Backend necessário (já implementado no app sincron-grupos)
+Antes de enviar ou alterar qualquer coisa, o Claude mostra o que vai fazer e para quais grupos, e pede
+sua confirmação.
 
-- Servidor OAuth 2.0 com DCR + PKCE: `/.well-known/oauth-authorization-server`,
-  `/.well-known/oauth-protected-resource`, `/oauth/register`, `/oauth/authorize`, `/oauth/token`.
-- Servidor MCP JSON-RPC protegido: `/api/mcp`.
-- Migration `20260608000001_oauth_mcp.sql` aplicada (`npm run db:migrate`).
-- Env var opcional `NEXT_PUBLIC_APP_URL=https://grupos.sincronia.digital` (senão resolve pela request).
+## O que vem no plugin
 
-## Tools MCP expostas
-`get_account`, `create_checkout_link`, `list_instances`, `connect_phone`, `get_instance_status`,
-`list_groups`, `list_categories`, `send_message`, `schedule_message`.
+| Skill | Para quê |
+|---|---|
+| `sincron-grupos` | Operação completa: grupos, categorias, mensagens, gatilhos, agentes, transcrição |
+| `conectar-whatsapp` | Conectar um número por QR code (ou código de pareamento) |
+| `assinar` | Gerar o link de pagamento (Pix ou cartão) e começar o trial de 7 dias |
+
+O servidor MCP expõe 10 tools no formato recurso + `action`: `account`, `organization`, `instances`,
+`groups`, `categories`, `messages`, `triggers`, `agents`, `transcription`, `stats`.
+
+## Suporte
+
+https://grupos.sincronia.digital
