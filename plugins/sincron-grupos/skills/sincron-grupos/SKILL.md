@@ -1,6 +1,6 @@
 ---
 name: sincron-grupos
-description: Configure e opere o Sincron Grupos (gestão de grupos WhatsApp) pela IA. Use as tools MCP do servidor `sincron-grupos` (instaladas com este plugin); o CLI `sincron` e a REST ficam para automação sem MCP. Use quando o usuário quiser assinar, conectar o WhatsApp/celular, importar/listar/organizar grupos, criar categorias, enviar ou agendar mensagens, configurar transcrição/resumo de áudio, criar/gerir gatilhos, criar/ativar agentes de IA, ver estatísticas, ou checar a conta. Aciona em "configurar Sincron Grupos", "conectar WhatsApp", "assinar o Grupos", "importar grupos", "mandar/agendar mensagem", "criar categoria/gatilho", "ativar resumo de áudio", "ver estatísticas".
+description: Configure e opere o Sincron Grupos (gestão de grupos WhatsApp) pela IA. Use as tools MCP do servidor `sincron-grupos` (instaladas com este plugin); o CLI `sincron` e a REST ficam para automação sem MCP. Use quando o usuário quiser configurar ou começar a usar a conta, assinar, conectar o WhatsApp/celular, importar/listar/organizar grupos, criar categorias, enviar ou agendar mensagens (inclusive para muitos grupos), escolher o que fazer com os áudios (transcrever/destacar), criar/gerir gatilhos, criar/ativar agentes de IA, ver estatísticas, ou checar a conta. Aciona em "configurar o Sincron Grupos", "me ajuda a começar", "conectar WhatsApp", "assinar o Grupos", "importar grupos", "mandar/agendar mensagem", "disparo para vários grupos", "criar categoria/gatilho", "transcrever áudio", "resumo de áudio", "ver estatísticas".
 ---
 
 # Sincron Grupos — Operação pela IA
@@ -10,19 +10,78 @@ As três interfaces (MCP, CLI, REST) falam com o MESMO backend — mesmos recurs
 ## Ordem de preferência
 
 1. **MCP (PADRÃO).** Este plugin já registra o servidor MCP `sincron-grupos`. Use as tools nativas.
-   - Na primeira chamada o Claude abre o navegador para o login (OAuth). Não peça API key.
-   - Se as tools não aparecerem: o plugin foi instalado agora e o cliente precisa **reiniciar**
-     (a lista de tools só atualiza no restart). No Claude.ai web/desktop sem plugin, o usuário pode
-     adicionar o conector em **Configurações → Conectores → Adicionar conector personalizado** com a URL
-     `https://grupos.sincronia.digital/api/mcp`.
+   - Login (OAuth) no navegador. No Claude Code: `/mcp` → `sincron-grupos` → Authenticate. Não peça API key.
+   - Sem as tools: rode `/reload-plugins` (ou reinicie). No Claude.ai, o usuário adiciona o conector em
+     **Conectores → Adicionar conector personalizado** com a URL `https://grupos.sincronia.digital/api/mcp`.
 2. **CLI `sincron`.** Para scripts, CI ou quando não houver MCP mas houver terminal.
 3. **REST `/api/v1`.** Último recurso, HTTP direto.
 
 ---
 
+## Onboarding guiado — COMECE POR AQUI
+
+Quando o usuário quiser configurar, começar, ou não souber o próximo passo:
+
+1. Chame `setup({ action: "guide" })`. Ele diz em que passo a conta está, o próximo passo, como fazer e
+   **a pergunta exata** a fazer em cada passo.
+2. Conduza **um passo por vez**, em linguagem simples, e **espere a resposta** antes de seguir.
+3. Depois de cada passo, chame `setup guide` de novo.
+
+As duas perguntas que nunca podem faltar:
+
+**Áudios** (passo 6). Pergunte com as opções numeradas e deixe a pessoa escolher:
+> O que o Sincron deve fazer com os áudios que chegam nos grupos?
+> 1. **Desligado** — nada acontece.
+> 2. **Só transcrever** — todo áudio vira texto no grupo.
+> 3. **Transcrever e destacar** — vira texto e, quando tiver tarefa, prazo ou decisão, isso vem destacado em cima (bom para grupos de trabalho).
+> 4. **Só quando pedirem** — transcreve só o áudio que alguém reagir com 📝.
+
+Depois: `transcription({ action: "set", group_id OU category_id, mode })` com
+`disabled | auto | auto_summary | manual` (na ordem acima). Por categoria afeta todos os grupos dela:
+confirme. Modos ativos exigem plano com IA (Pro).
+
+**Ritmo dos envios para vários grupos** (passo 7). Explique e pergunte:
+> Quando você mandar a mesma mensagem para vários grupos, o Sincron envia **um grupo por vez**, com
+> intervalo variável, para o seu número não ser bloqueado pelo WhatsApp (ex.: 40 grupos levam uns 40 min).
+> Prefere deixar o Sincron decidir o ritmo (recomendado) ou quer um intervalo fixo seu?
+
+- Sincron decide → nada a fazer (`disparo_intervalo_seg` fica `null`).
+- Intervalo fixo → `organization({ action: "update", disparo_intervalo_seg: N })` (5–3600 s). Se N for
+  menor que o recomendado, diga que é arriscado e confirme.
+
+## Disparo seguro (mensagens para vários grupos)
+
+Todo envio sai pela fila: o 1º grupo na hora, os demais um de cada vez, com intervalo médio que varia
+±35% (para não parecer robô). Disparos simultâneos do mesmo número **não se somam**: dividem o mesmo ritmo.
+
+| Grupos | Intervalo médio (Sincron decide) | Pausa longa | Exemplo |
+|---|---|---|---|
+| 2–5 | ~20 s | — | 5 grupos ≈ 1 min |
+| 6–20 | ~30 s | — | 20 ≈ 10 min |
+| 21–60 | ~60 s | — | 40 ≈ 39 min |
+| mais de 60 | ~75 s | ~8 min a cada 20 | 100 ≈ 2 h 36 |
+
+Antes de enviar para vários grupos:
+1. `messages({ action: "plan", group_ids })` → mostre o `resumo` ("40 grupos · cerca de 39 min · um a cada ~60 s").
+2. Confirme texto + grupos + tempo com o usuário.
+3. `messages({ action: "send" | "schedule", group_ids, message, ... })`. A resposta traz `message_id` e o plano.
+4. Acompanhe com `messages({ action: "get", message_id })`; para parar: `messages({ action: "cancel", message_id })`.
+
+Ritmo manual: `interval_mode: "manual", interval_seconds: N`. Abaixo do recomendado o backend **recusa**
+sem `accept_risk: true` — só envie isso depois de dizer ao usuário que o número pode ser bloqueado e ele
+confirmar que segue mesmo assim. Nunca use `accept_risk` por conta própria.
+
+## Conectar o WhatsApp
+
+Skill `conectar-whatsapp`. Resumo: `instances({ action: "connect", name, phone? })` devolve `link_qr`
+(página do painel com o QR, atualiza sozinha) e, com `phone`, `codigo_pareamento`. **Mande o link ou o
+código** — a imagem do QR nem sempre aparece para o usuário. Depois `instances status` a cada ~5 s.
+
+---
+
 ## 1) MCP — padrão
 
-10 tools no formato **recurso + `action`**: `account, organization, instances, groups, categories, messages, triggers, agents, transcription, stats`.
+11 tools no formato **recurso + `action`**: `setup, account, organization, instances, groups, categories, messages, triggers, agents, transcription, stats`.
 Ex.: `categories({ action: "create", name: "Leads", color: "#10B981" })`.
 
 ## 2) CLI `sincron` — automação sem MCP
@@ -49,51 +108,38 @@ Descoberta: `GET /api/v1` · Docs: `/docs` · OpenAPI: `/api/v1/openapi.json`.
 
 | Recurso | Ações |
 |---|---|
+| **setup** | `guide` (passo atual, próximo passo, perguntas a fazer) |
 | **account** | `get` · `checkout` (plan=starter\|pro, period=monthly\|annual → link de pagamento Cakto) |
-| **organization** | `get` · `update` (nome?, timezone IANA — afeta a hora dos agendamentos) |
-| **instances** | `list` · `status`(instance_id) · `connect`(name→QR) · `reconnect`(instance_id) · `disconnect`(instance_id) · `delete`(instance_id) · `check_phone`/`send_otp`/`verify_otp` (pareamento por código) |
+| **organization** | `get` · `update` (nome?, timezone IANA — afeta a hora dos agendamentos —, `disparo_intervalo_seg` = ritmo padrão, `null` = Sincron decide) |
+| **instances** | `list` · `status`(instance_id) · `connect`(name, phone? → link_qr / codigo_pareamento) · `reconnect`(instance_id, phone?) · `disconnect`(instance_id) · `delete`(instance_id) · `check_phone`(phone) |
 | **groups** | `list`(category_id?/search?) · `available`(search?) · `import`(group_jids[] OU name_filter) · `move_category`(group_ids[]+category_id\|null) · `settings`(group_id + guardar_todas_mensagens/processar_simultaneo/**visibilidade**=cliente\|interno) · `archive`(group_ids[]) |
 | **categories** | `list` · `create`(name,color #RRGGBB) · `update`(category_id+name?/color?) · `delete`(category_id) |
-| **messages** | `list`(page?/status?) · `send`(group_ids[]+message) · `schedule`(+scheduled_at ISO futuro) · `cancel`(message_id) · `retry`(message_id) |
-| **triggers** | `list` · `create`(event/action + alvo `target_group_ids[]` **e/ou** `target_category_ids[]`) · `update`(is_active pausa/ativa; mesmos alvos) · `delete` · `duplicate` · `run`(executa real) · `executions` · `reorder`(ordered_ids[]) |
+| **messages** | `plan`(group_ids[] ou group_count, ritmo? — não envia) · `send`(group_ids[]+message, ritmo?) · `schedule`(+scheduled_at ISO futuro) · `get`(message_id → progresso) · `list`(page?/status?) · `cancel`(message_id; agendada ou em andamento) · `retry`(message_id; só os grupos que falharam) |
+| **triggers** | `list` · `create`(event/action + alvo `target_group_ids[]` **e/ou** `target_category_ids[]`) · `update`(is_active pausa/ativa; mesmos alvos) · `delete` · `duplicate` · `run`(executa real) · `executions` · `reorder`(ordered_ids[]) · `test_webhook`(url) |
 | **agents** | `list` · `create` · `update` · `delete` · `scope`(ativa em grupos **OU** categorias) · `test` · `bulk_toggle` · `logs` · `check_keys` |
-| **transcription** | `get`(group_id) · `set`(group_id OU category_id, mode=disabled\|auto\|manual\|auto_summary) |
+| **transcription** | `get`(group_id) · `set`(group_id OU category_id, mode=disabled\|auto\|auto_summary\|manual) |
 | **stats** | `get` |
 
-Enums: trigger event_type `keyword\|new_member\|member_leave\|scheduled\|reaction`; action_type `send_message\|auto_reply\|notify_admin\|delete_member\|webhook\|ai_agent`; transcrição mode `disabled\|auto\|manual\|auto_summary`; agente scope_type `all\|groups\|categories`.
+Ritmo (send/schedule): `interval_mode=auto|manual`, `interval_seconds` (manual), `accept_risk` (manual abaixo do recomendado).
+Enums: trigger event_type `keyword\|new_member\|member_leave\|scheduled\|reaction`; action_type `send_message\|auto_reply\|notify_admin\|delete_member\|webhook\|ai_agent`; agente scope_type `all\|groups\|categories`.
 
 ## Modelo mental — EXPLIQUE no onboarding
 
 A montagem é sempre **instância → grupos → configuração**:
 
-1. **Instância** = um número de WhatsApp conectado (QR). Tudo pendura nela.
+1. **Instância** = um número de WhatsApp conectado. Tudo pendura nela.
 2. **Grupo** = importado da instância. Cada grupo pode ficar **isolado** (configurado sozinho) **ou** dentro de uma **categoria**.
 3. **Categoria** = um balde que junta vários grupos para aplicar **a MESMA configuração a todos de uma vez** (e novos grupos movidos pra categoria herdam). **Não é só rótulo — é configuração consolidada.**
 
-Por isso **toda configuração tem dois caminhos: por grupo (afeta 1) ou por categoria (afeta todos os grupos dela)**. No onboarding, sempre ofereça as duas opções:
-> "Quer cadastrar **grupos isolados** (configura cada um) ou criar **categorias** pra agrupar e configurar tudo de uma vez?"
-
-### Por grupo vs por categoria — o que cada um aceita
+Por isso **toda configuração tem dois caminhos: por grupo (afeta 1) ou por categoria (afeta todos os grupos dela)**:
 
 | Configuração | Por grupo | Por categoria |
 |---|---|---|
-| Transcrição/resumo de áudio | `transcription set` com `group_id` | `transcription set` com `category_id` |
+| Áudios | `transcription set` com `group_id` | `transcription set` com `category_id` |
 | Agente de IA (onde responde) | `agents scope` com `scope_type: groups` + `group_ids` | `agents scope` com `scope_type: categories` + `category_ids` |
 | Gatilho (alvo) | `triggers create` com `target_group_ids` | `triggers create` com `target_category_ids` |
 | Enviar/agendar mensagem | `messages send` com `group_ids` | **nativo não** → `groups list` com `category_id` e envie pros IDs |
 | Ajustes do grupo (histórico, paralelo, visibilidade interno/cliente) | `groups settings` com `group_id` | **só por grupo** |
-
-> **Mensagem não aceita categoria direto.** Para mandar pra uma categoria inteira: `groups list` com `category_id`, pegue os `group_ids` e passe em `messages send/schedule`.
-
-## Fluxo recomendado (onboarding)
-1. **Diagnóstico:** `account get`. Sem assinatura → `account checkout` (skill `assinar`). Ativo → seguir.
-2. **Conectar WhatsApp:** skill `conectar-whatsapp` (`instances connect` → QR → `instances status` até conectado).
-3. **Fuso horário:** `organization get`; se não for o do usuário, `organization update` com o timezone certo antes de agendar.
-4. **Importar grupos:** sem grupos? `groups available` → `groups import`.
-5. **Decidir a organização (PERGUNTE ao usuário):**
-   - **Grupos isolados** → configure cada um por `group_id`.
-   - **Categorias** → `categories create` → `groups move_category` pra encaixar → configure a categoria inteira de uma vez.
-6. **Operar:** `messages send/schedule`; automações `triggers`; resumo de áudio `transcription set`; agentes `agents`; números `stats get`.
 
 ## Receita: radar de propostas/oportunidades (caso de uso comum)
 
@@ -116,6 +162,8 @@ triggers({
    Placeholders disponíveis na mensagem da ação: `{{nome_grupo}}`, `{{mensagem}}`, `{{nome_membro}}`, `{{numero_membro}}`, `{{data_hora}}`.
 4. **Teste e ative:** `triggers run` (confirme onde o alerta chegou) → revisão do destino com o usuário → `triggers update` com `is_active: true`.
 5. **NUNCA** use `auto_reply`/`own_group` nesta receita — o alerta cairia no próprio grupo escutado (vazamento). O backend recusa (`TRIGGER_UNSAFE_DESTINATION`) se o destino não for interno.
+
+> Gatilho que envia para **vários grupos** também sai pela fila do disparo seguro (um grupo por vez).
 
 ## Receita: agente de IA respondendo no grupo
 
@@ -146,8 +194,9 @@ Objetivo: o agente **responde no próprio grupo** (ou no privado do membro, com 
 5. **Auditoria pré-uso (rodar antes de liberar pra equipe):** `triggers list` + `agents list` → sinalize toda automação **ativa** cujo destino seja `own_group` ou inclua grupo de cliente, principalmente com conteúdo sensível. Ofereça pausar.
 
 ## Regras
-- **Confirme antes de qualquer escrita** (enviar/agendar mensagem, criar/editar/excluir gatilho/agente, mudar transcrição, importar/arquivar grupos): mostre conteúdo + alvos e peça OK. No CLI, use `--dry-run` para revisar.
+- **Confirme antes de qualquer escrita** (enviar/agendar mensagem, criar/editar/excluir gatilho/agente, mudar áudios, importar/arquivar grupos): mostre conteúdo + alvos e peça OK. No CLI, use `--dry-run` para revisar.
 - **Escopo de categoria afeta TODOS os grupos** dela — confirme antes de usar `category_id` em `transcription set`/`agents scope`.
 - Ações que disparam no WhatsApp de verdade: `messages send/retry`, `triggers run`, gatilhos/agentes ativos.
+- Teste de envio: só num grupo que o usuário indicar.
 - Datas de agendamento sempre futuras, ISO 8601, no fuso da organização.
 - **Sem ferramenta de billing avançado** nem ações sensíveis (senha, API keys, equipe, excluir conta) — humano-only, pelo painel.
