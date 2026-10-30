@@ -1,11 +1,11 @@
 ---
 name: assinar
-description: Assina o Sincron Grupos (checkout Cakto self-serve, Pix ou cartão) pela IA. Use quando o usuário quiser assinar, contratar, fazer upgrade de plano, iniciar o trial, ou quando uma ação for bloqueada por assinatura inativa/limite de plano.
+description: Assina o Sincron Grupos (checkout Cakto self-serve, Pix ou cartão) pela IA. Use quando o usuário quiser assinar, contratar, fazer upgrade de plano, ou quando uma ação for bloqueada por assinatura inativa/limite de plano.
 ---
 
 # Assinar o Sincron Grupos
 
-Gera um link de checkout da **Cakto** (Pix, cartão e carteiras; 7 dias de trial) usando a tool MCP `account` do servidor `sincron-grupos`.
+Gera um link de checkout da **Cakto** (Pix, cartão e carteiras; sem fidelidade) usando a tool MCP `account` do servidor `sincron-grupos`.
 
 ## Passos
 
@@ -18,10 +18,10 @@ Gera um link de checkout da **Cakto** (Pix, cartão e carteiras; 7 dias de trial
 
 3. **Gere o link**: `account({ action: "checkout", plan, period })`.
    - Apresente o `checkout_url` para o usuário **abrir no navegador** e pagar via Pix, cartão ou carteira.
-   - Informe que o trial é de 7 dias e que a assinatura é gerenciada na área do cliente da Cakto.
+   - Informe que a cobrança começa no pagamento (não há período de teste) e que a assinatura é gerenciada na área do cliente da Cakto.
 
 4. **Confirme**: depois que o usuário avisar que assinou, chame `account({ action: "get" })` de novo e confirme
-   `subscription_status` ativo/trial. Em seguida, ofereça **conectar o WhatsApp** (skill `conectar-whatsapp`).
+   `subscription_status` ativo. Em seguida, ofereça **conectar o WhatsApp** (skill `conectar-whatsapp`).
 
 ## Observações
 - `account checkout` exige login OAuth (não funciona com API key avulsa). Como o plugin usa OAuth, isso é transparente.

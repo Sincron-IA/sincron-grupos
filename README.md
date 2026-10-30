@@ -59,7 +59,7 @@ sua confirmação.
 |---|---|
 | `sincron-grupos` | Operação completa: grupos, categorias, mensagens, gatilhos, agentes, transcrição |
 | `conectar-whatsapp` | Conectar um número por QR code (ou código de pareamento) |
-| `assinar` | Gerar o link de pagamento (Pix ou cartão) e começar o trial de 7 dias |
+| `assinar` | Gerar o link de pagamento (Pix ou cartão) e assinar |
 
 O servidor MCP expõe 10 tools no formato recurso + `action`: `account`, `organization`, `instances`,
 `groups`, `categories`, `messages`, `triggers`, `agents`, `transcription`, `stats`.
